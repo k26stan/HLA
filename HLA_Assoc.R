@@ -145,14 +145,13 @@ for ( PRECISE in c(2,4) ) {
 			if ( PRECISE==2 ) {
 				pat_typ <- PAT_TYP.2[gene,]
 				pat_dos.a <- PAT_DOS.2[[gene]]
-				pat_aa <- PAT_AA.2[[gene]]	
+				pat_aa <- PAT_AA[[gene]]	
 			}else{
 				pat_typ <- PAT_TYP[gene,]
 				pat_dos.a <- PAT_DOS[[gene]]
 				pat_aa <- PAT_AA[[gene]]	
 			}
 		}
-		
 
 		## Filter Haplotypes to Common Haplotypes
 		which_common <- which(rowSums(pat_dos.a)>.05*N.PATS)
@@ -193,7 +192,7 @@ for ( PRECISE in c(2,4) ) {
 					MOD <- lm( pheno ~ cov + dip, data=TEMP_ARR )
 					P.DIP[p,d] <- anova(MOD)["dip","Pr(>F)"]	
 				}
-			}
+			} 
 		}
 		P$DIP[[gene]] <- P.DIP
 		 # Dosage Association
@@ -268,13 +267,43 @@ for ( PRECISE in c(2,4) ) {
 ## POKE AROUND SPECIFIC ALLELES #############################
 #############################################################
 
+##########################################
+## DRB1 ##################################
+##########################################
 
+## POS 11, 71, 74 ##
+ # Viatte, et al (2015)
+HAP <- paste( PAT_AA$DRB1[,"Pos_11"], PAT_AA$DRB1[,"Pos_71"], PAT_AA$DRB1[,"Pos_74"], sep="" )
+names(HAP) <- rownames(PAT_AA$DRB1)
+N.HAP <- length(unique(HAP))
+HAP.arr <- array( 0,c(N.PATS,length(unique(HAP))) )
+colnames(HAP.arr) <- unique(HAP)
+rownames(HAP.arr) <- PATS
+for ( pat in PATS ) {
+	HAP.pat <- HAP[ grep(pat,names(HAP)) ]
+	if ( HAP.pat[1]==HAP.pat[2] ) {
+		HAP.arr[pat,HAP.pat[1]] <- 2
+	}else{
+		HAP.arr[pat,HAP.pat] <- 1
+	}
+}
 
+MG.HAP <- merge( HAP.arr, FT, by.x="row.names",by.y="ID" )
 
-
-
-
-
+LM.HAP <- list()
+for ( hap in unique(HAP) ) {
+	formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF_ACPA") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + I(ACPA=='Positive')") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF") )
+	LM.HAP[[hap]] <- lm( formula, data=MG.HAP )
+	# lm( DEL_MNe_MN ~ x + DAS_BL_MN, data=MG.HAP )
+}
+lapply( LM.HAP, anova )
+Ps <- unlist(lapply( LM.HAP, function(x) anova(x)[1,"Pr(>F)"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)["RF_ACPA","Pr(>F)"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)["RF","Pr(>F)"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)['I(ACPA == "Positive")',"Pr(>F)"] ))
 
 
 
