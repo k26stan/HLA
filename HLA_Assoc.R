@@ -1,6 +1,34 @@
 ## Look for Association b/n HLA Amino Acids & Drug Response ##
 ## May 12, 2015 ##
+## Updated Sept 25, 2015 ##
 ## Kristopher Standish ##
+
+## GAME PLAN ##
+ # Sept 25, 2015
+
+## Brainstorming
+ # Phenotypes
+   # Drug Response (delta-DAS,lCRP,rSJC,rTJC)
+   # Disease Severity
+   # RF/ACPA Status
+ # HLA Predictors
+   # ANOVA over all Types for each Gene
+     # 2- & 4-Digit Type  
+   # Additive/Dominant/Recessive for each Type for each Gene
+     # 2- & 4-Digit Type
+   # Amino-Acid Level Tests for each Gene (4- or Best-Digit Precision)
+     # ANOVA over all Amino Acids at each Position
+     # Additive/Dominant/Recessive for each Type for each Gene
+   # Collapsed Amino-Acid Haplotypes
+     # DRB1
+       # Pos 11,71,74
+       # Pos 70-74 (Shared Epitope)
+       # Pos 11,13,71,74
+     # B
+       # Pos 9
+     # DPB1
+       # Pos 9
+
 
 library(gplots)
 
@@ -102,7 +130,8 @@ for ( g in 1:N.GENE ) { gene <- GENE_LIST[g]
 
 ## Plot AA Level Diversity within Cohort
 COLS.list <- c("firebrick2","chocolate2","gold1","chartreuse2","cadetblue2","dodgerblue2","slateblue2","magenta2")
-COLS.2.list <- sample(COLS.list)
+# COLS.2.list <- sample(COLS.list)
+COLS.AA <- c(colorRampPalette(COLS.list)(26),"black","grey80") ; names(COLS.AA) <- c(LETTERS,"*",".")
 for ( g in 1:length(GENE_LIST) ) {
 	gene <- GENE_LIST[g]
 	# Pull out Patient Data for Gene
@@ -113,40 +142,58 @@ for ( g in 1:length(GENE_LIST) ) {
 	max.temp <- max( unlist(lapply( apply( pat_aa, 2, table ), length)) )
 	which.temp <- which( unlist(lapply( apply( pat_aa, 2, table ), length)) > 1 )
 	pat_tab <- sapply(apply( pat_aa, 2, table ), "[", 1:max.temp ) ; colnames(pat_tab) <- gsub("Pos_","",colnames(pat_tab))
+	pat_tab.prc <- pat_tab / nrow(pat_aa)
 	pat_tab.names <- sapply(apply( pat_aa, 2, function(x) names(table(x)) ), "[", 1:max.temp )
-	png( paste(PathToPlot,"/FR_",gene,".png",sep=""), height=1000,width=2000,pointsize=30 )
-	barplot( pat_tab[,which.temp]/nrow(pat_aa), col=COLS.2.list,border=NA,las=2, main=paste("Amino Acid Frequency",gene),xlab="Amino Acid",ylab="Frequency" )
+	 # Plot
+	# which.temp.Pos <- as.numeric(as.character(gsub("Pos_","",names(which.temp))))
+	# XLIM <- range(which.temp.Pos)
+	XLIM <- range(as.numeric(colnames(pat_tab)))
+	png( paste(PathToPlot,"/2-AAfreq_",gene,".png",sep=""), height=1000,width=2000,pointsize=30 )
+	plot( 0,0,type="n",xlim=XLIM,ylim=c(0,1), main=paste("Amino Acid Frequency",gene),xlab="Amino Acid",ylab="Frequency",xaxt="n")
+	axis( 1, at=seq(-1000,1000,20),las=2 )	
+	abline( v=seq(-1000,1000,20),lty=3,col="grey50")
+	allele_bar <- function(x) {
+		xval <- as.numeric(colnames(pat_tab)[x])
+		yvals <- cumsum(pat_tab.prc[,x])
+		barplot( t(t(pat_tab.prc[,x])),add=T,xaxt="n",beside=F,border=NA,col=COLS.AA[pat_tab.names[,x]],space=c(xval,0),width=1)
+	}
+	DWAI <- lapply( which.temp, allele_bar )
 	dev.off()
+	# barplot( pat_tab[,which.temp]/nrow(pat_aa), col=COLS.2.list,border=NA,las=2, main=paste("Amino Acid Frequency",gene),xlab="Amino Acid",ylab="Frequency" )
+	# barplot( pat_tab[,which.temp]/nrow(pat_aa), col=,border=NA,las=2, main=paste("Amino Acid Frequency",gene),xlab="Amino Acid",ylab="Frequency" )
 }
-
 	
 #############################################################
 ## RUN ASSOCIATION TESTS ####################################
 #############################################################
 
 ## Specify Phenos/Covs
-PHENOS <- c("DEL_MNe_MN","DEL_lCRP_MNe_MN","DEL_rSJC_MNe_MN","DEL_rTJC_MNe_MN")
-COVS <- c("DAS_BL_MN","lCRP_BL_MN","rSJC_BL_MN","rTJC_BL_MN")
+PHENOS <- c("DEL_MNe_MN","DEL_lCRP_MNe_MN","DEL_rSJC_MNe_MN","DEL_rTJC_MNe_MN",
+	"DAS_BL_MN","lCRP_BL_MN","rSJC_BL_MN","rTJC_BL_MN",
+	"RF_ACPA","ACPA","RF" )
+COVS <- c("DAS_BL_MN","lCRP_BL_MN","rSJC_BL_MN","rTJC_BL_MN",
+	"RF_ACPA+log(DIS_DUR)","RF_ACPA+log(DIS_DUR)","RF_ACPA+log(DIS_DUR)","RF_ACPA+log(DIS_DUR)",
+	"","","")
 PH.COV <- data.frame(PHENOS,COVS)
 
 ## Loop Through Genes & Test for Assoc
 P.precise <- list()
 for ( PRECISE in c(2,4) ) {
 	P <- list()
-	P$DIP <- P$DOS <- list()
+	P$DIP <- P$DOS <- P$AA <- list()
 	for ( g in 1:N.GENE ) {
 		gene <- GENE_LIST[g]
 		## Pull out Patient Data for Gene
+		pat_aa <- PAT_AA[[gene]]
 		if ( PRECISE==4 ) {
 			pat_typ <- PAT_TYP.4[gene,]
 			pat_dos.a <- PAT_DOS.4[[gene]]
-			pat_aa <- PAT_AA.4[[gene]]	
 		}else{
 			if ( PRECISE==2 ) {
 				pat_typ <- PAT_TYP.2[gene,]
-				pat_dos.a <- PAT_DOS.2[[gene]]
-				pat_aa <- PAT_AA[[gene]]	
+				pat_dos.a <- PAT_DOS.2[[gene]]	
 			}else{
+				PRECISE <- 0
 				pat_typ <- PAT_TYP[gene,]
 				pat_dos.a <- PAT_DOS[[gene]]
 				pat_aa <- PAT_AA[[gene]]	
@@ -154,7 +201,9 @@ for ( PRECISE in c(2,4) ) {
 		}
 
 		## Filter Haplotypes to Common Haplotypes
-		which_common <- which(rowSums(pat_dos.a)>.05*N.PATS)
+		HAP.freqs <- rowSums(pat_dos.a)
+		which_common <- which(HAP.freqs>.05*N.PATS)
+		which_common <- which(HAP.freqs>10)
 		which_common.haps <- names(which_common)
 		pat_dos <- pat_dos.a[ which_common, ]
 		if ( nrow(pat_dos.a)==1 ) { next }
@@ -164,14 +213,32 @@ for ( PRECISE in c(2,4) ) {
 		MG.DIP.1 <- merge( pat_aa, data.frame(PAT=names(pat_typ),TYP=pat_typ), by.x="row.names",by.y="PAT" )
 		colnames(MG.DIP.1)[1] <- "DIP"
 		MG.DIP.1 <- data.frame( ID=sapply(strsplit(MG.DIP.1[,1],"_"),"[",1), MG.DIP.1 )
-		MG.DIP.2 <- MG.DIP.1[ which(MG.DIP.1$TYP %in% which_common.haps), ]
-		MG.DIP <- merge( FT, MG.DIP.2, by="ID")
+		MG.DIP <- merge( FT, MG.DIP.1, by="ID")
+		MG.DIP <- MG.DIP[ which(MG.DIP$TYP %in% which_common.haps), ]
+		MG.DIP[,"ACPA"] <- MG.DIP[,"ACPA"]=="Positive"
 		 # Merge w/ Phenotype Data
 		MG.DOS <- merge( FT, t(pat_dos), by.x="ID",by.y="row.names" )
 
-		## Run Association
-		 # Diplotype Association
-		P.DIP <- array( ,c(4,ncol(MG.DIP.1)-2))
+		## Run Association Tests
+
+		 # ANOVA of Common Haplotypes vs Phenotypes
+		P.TYP <- numeric( length(PHENOS) )
+		names(P.TYP) <- PHENOS
+		for ( p in 1:length(PHENOS) ) {
+			pheno <- PHENOS[p]
+			cov <- COVS[p]
+			formula <- as.formula(paste( pheno,"~",cov,"+TYP" ))
+			if ( pheno %in% c("RF_ACPA","ACPA","RF") ) {
+				MOD <- chisq.test( table( MG.DIP[,pheno],as.character(MG.DIP[,"TYP"]) ) )
+				P.TYP[p] <- MOD$p.value
+			}else{
+				MOD <- lm( formula, data=MG.DIP )
+				P.TYP[p] <- anova(MOD)["TYP","Pr(>F)"]
+			}
+		}
+
+		 # ANOVA for all 
+		P.DIP <- array( ,c(length(PHENOS),ncol(MG.DIP.1)-2))
 		colnames(P.DIP) <- colnames(MG.DIP.1)[3:ncol(MG.DIP.1)]
 		rownames(P.DIP) <- PHENOS
 		for ( p in 1:length(PHENOS) ) {
@@ -179,20 +246,22 @@ for ( PRECISE in c(2,4) ) {
 			cov <- COVS[p]
 			for ( d in 1:ncol(P.DIP) ) {
 				dip <- colnames(P.DIP)[d]
-				TEMP_ARR <- MG.DIP[, c(pheno,cov,dip) ]
-				colnames(TEMP_ARR) <- c("pheno","cov","dip")
-				TEMP_ARR <- TEMP_ARR[which(!is.na(TEMP_ARR$pheno)),]
-				TEMP_ARR <- TEMP_ARR[which(!is.na(TEMP_ARR$dip)),]
-				TEMP_ARR <- TEMP_ARR[which(TEMP_ARR$dip!="*"),]
-				UNIQ <- unique(TEMP_ARR$dip) ; UNIQ <- UNIQ[which(!is.na(UNIQ))]
+				UNIQ <- unique(MG.DIP[,dip]) ; UNIQ <- UNIQ[which(!is.na(UNIQ))]
 				if ( length(UNIQ)==1 ) {
 					P.DIP[p,d] <- NA
 				}else{
-					# print(d)
-					MOD <- lm( pheno ~ cov + dip, data=TEMP_ARR )
+					formula <- as.formula(paste( pheno,"~",cov,"+",dip ))
+					print(d)
+					MOD <- lm( formula, data=MG.DIP )
 					P.DIP[p,d] <- anova(MOD)["dip","Pr(>F)"]	
 				}
-			} 
+				# TEMP_ARR <- MG.DIP[, c(pheno,cov,dip) ]
+				# colnames(TEMP_ARR) <- c("pheno","cov","dip")
+				# TEMP_ARR <- TEMP_ARR[which(!is.na(TEMP_ARR$pheno)),]
+				# TEMP_ARR <- TEMP_ARR[which(!is.na(TEMP_ARR$dip)),]
+				# TEMP_ARR <- TEMP_ARR[which(TEMP_ARR$dip!="*"),]
+				# UNIQ <- unique(TEMP_ARR$dip) ; UNIQ <- UNIQ[which(!is.na(UNIQ))]		
+			}
 		}
 		P$DIP[[gene]] <- P.DIP
 		 # Dosage Association
@@ -273,8 +342,55 @@ for ( PRECISE in c(2,4) ) {
 
 ## POS 11, 71, 74 ##
  # Viatte, et al (2015)
-HAP <- paste( PAT_AA$DRB1[,"Pos_11"], PAT_AA$DRB1[,"Pos_71"], PAT_AA$DRB1[,"Pos_74"], sep="" )
-names(HAP) <- rownames(PAT_AA$DRB1)
+Positions <- c(11,71,74)
+HAP <- apply( PAT_AA$DRB1[,paste("Pos",Positions,sep="_")], 1, function(x) paste(x,collapse="") )
+HAP <- gsub("NA","-",HAP)
+N.HAP <- length(unique(HAP))
+HAP.arr <- array( 0,c(N.PATS,length(unique(HAP))) )
+colnames(HAP.arr) <- unique(HAP)
+rownames(HAP.arr) <- PATS
+for ( pat in PATS ) {
+	HAP.pat <- HAP[ grep(pat,names(HAP)) ]
+	if ( HAP.pat[1]==HAP.pat[2] ) { HAP.arr[pat,HAP.pat[1]] <- 2
+	}else{ HAP.arr[pat,HAP.pat] <- 1 }
+}
+ # Plot Haplotype Frequency
+png( paste(PathToPlot,"/DRB1_1-HapFreq",paste(Positions,collapse=""),".png",sep=""), height=800,width=1600,pointsize=30 )
+barplot( table(HAP),las=2,col="dodgerblue2",main="HLA-DRB1: Pos11,71,74 Haplotype Frequency",ylab="# Haplotypes")
+abline(h=seq(0,1000,20),lty=3,col="grey50")
+barplot( table(HAP),las=2,col="dodgerblue2",main="HLA-DRB1: Pos11,71,74 Haplotype Frequency",ylab="# Haplotypes",add=T)
+dev.off()
+
+MG.HAP <- merge( HAP.arr, FT, by.x="row.names",by.y="ID" )
+
+LM.HAP <- LM.HAP.sev <- list()
+for ( hap in unique(HAP) ) {
+	formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF_ACPA") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + I(ACPA=='Positive')") )
+	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF") )
+	LM.HAP[[hap]] <- lm( formula, data=MG.HAP )
+	formula <- as.formula( paste("DAS_BL_MN ~",hap,"+ RF_ACPA+log(DIS_DUR)") )
+	LM.HAP.sev[[hap]] <- lm( formula, data=MG.HAP )
+	# lm( DEL_MNe_MN ~ x + DAS_BL_MN, data=MG.HAP )
+}
+lapply( LM.HAP, anova )
+Ps <- unlist(lapply( LM.HAP, function(x) anova(x)[1,"Pr(>F)"] ))
+Ps <- unlist(lapply( LM.HAP.sev, function(x) anova(x)[1,"Pr(>F)"] ))
+Ps.sev <- unlist(lapply( LM.HAP.sev, function(x) anova(x)[1,"Pr(>F)"] ))
+
+Bs <- unlist(lapply( LM.HAP, function(x) summary(x)$coef[2,"Estimate"] ))
+Bs.sev <- unlist(lapply( LM.HAP.sev, function(x) summary(x)$coef[2,"Estimate"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)["RF_ACPA","Pr(>F)"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)["RF","Pr(>F)"] ))
+# unlist(lapply( LM.HAP, function(x) anova(x)['I(ACPA == "Positive")',"Pr(>F)"] ))
+plot( -log10(1:17/17), -log10(sort(Ps)) )
+abline(0,1)
+
+## POS 11, 13, 71, 74 ##
+Positions <- c(11,13,71,74)
+HAP <- apply( PAT_AA$DRB1[,paste("Pos",Positions,sep="_")], 1, function(x) paste(x,collapse="") )
+HAP <- gsub("NA","-",HAP)
 N.HAP <- length(unique(HAP))
 HAP.arr <- array( 0,c(N.PATS,length(unique(HAP))) )
 colnames(HAP.arr) <- unique(HAP)
@@ -287,25 +403,12 @@ for ( pat in PATS ) {
 		HAP.arr[pat,HAP.pat] <- 1
 	}
 }
-
-MG.HAP <- merge( HAP.arr, FT, by.x="row.names",by.y="ID" )
-
-LM.HAP <- list()
-for ( hap in unique(HAP) ) {
-	formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN") )
-	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF_ACPA") )
-	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + I(ACPA=='Positive')") )
-	# formula <- as.formula( paste("DEL_MNe_MN ~",hap,"+ DAS_BL_MN + RF") )
-	LM.HAP[[hap]] <- lm( formula, data=MG.HAP )
-	# lm( DEL_MNe_MN ~ x + DAS_BL_MN, data=MG.HAP )
-}
-lapply( LM.HAP, anova )
-Ps <- unlist(lapply( LM.HAP, function(x) anova(x)[1,"Pr(>F)"] ))
-# unlist(lapply( LM.HAP, function(x) anova(x)["RF_ACPA","Pr(>F)"] ))
-# unlist(lapply( LM.HAP, function(x) anova(x)["RF","Pr(>F)"] ))
-# unlist(lapply( LM.HAP, function(x) anova(x)['I(ACPA == "Positive")',"Pr(>F)"] ))
-
-
+ # Plot Haplotype Frequency
+png( paste(PathToPlot,"/DRB1_1-HapFreq",paste(Positions,collapse=""),".png",sep=""), height=800,width=1600,pointsize=30 )
+barplot( table(HAP),las=2,col="dodgerblue2",main="HLA-DRB1: Pos11,71,74 Haplotype Frequency",ylab="# Haplotypes")
+abline(h=seq(0,1000,20),lty=3,col="grey50")
+barplot( table(HAP),las=2,col="dodgerblue2",main="HLA-DRB1: Pos11,71,74 Haplotype Frequency",ylab="# Haplotypes",add=T)
+dev.off()
 
 
 
