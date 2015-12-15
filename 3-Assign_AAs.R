@@ -11,9 +11,10 @@ DATE <- gsub("-","",Sys.Date())
 
 ## Set Paths to HLA Data Sets
 PathToTypes <- "/Users/kstandis/Data/Burn/Data/HLA/20150512_SOAP_HLA_Types/20150511_HLA_Types.Rdata"
+PathToTypes <- "/Users/kstandis/Data/Burn/Data/HLA/20151211_SOAP_HLA_Types/20151211_HLA_Types.Rdata"
 PathToRefs <- "/Users/kstandis/Data/HLI_Phase/20150223_HLA_Ref/Alignments_Rel_3190/"
  # http://www.ebi.ac.uk/ipd/imgt/hla/nomenclature/alignments.html
-PathToOut <- "/Users/kstandis/Data/Burn/Data/HLA/20150512_SOAP_HLA_Types/"
+PathToOut <- "/Users/kstandis/Data/Burn/Data/HLA/20151211_SOAP_HLA_Types/"
 dir.create( PathToOut )
 
 ## Load Janssen HLA Results
